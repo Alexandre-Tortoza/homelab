@@ -1,0 +1,96 @@
+{
+    # Sablier deve rodar antes do reverse_proxy em cada bloco de site
+    order sablier before reverse_proxy
+}
+
+# ── Gitea ─────────────────────────────────────────────────────────────────────
+{$GITEA_DOMAIN} {
+    tls internal
+
+    sablier http://sablier:10000 {
+        group gitea
+        session_duration {$GITEA_SESSION_DURATION}
+        dynamic {
+            display_name Gitea
+            show_details true
+            theme        hacker-terminal
+            refresh_frequency 5s
+            waiting_timeout   2m
+        }
+    }
+
+    # Sem limite de body: LFS, Container Registry e uploads grandes
+    request_body {
+        max_size 0
+    }
+
+    reverse_proxy gitea:3000 {
+        # Necessário para git-http-backend e git smart-HTTP
+        flush_interval -1
+        header_up X-Forwarded-Proto https
+        header_up X-Real-IP {remote_host}
+    }
+
+    header {
+        -Server
+        X-Content-Type-Options nosniff
+        Referrer-Policy same-origin
+    }
+}
+
+# ── Vaultwarden ───────────────────────────────────────────────────────────────
+{$VAULTWARDEN_DOMAIN} {
+    tls internal
+
+    # Modo blocking para clientes de API (Bitwarden apps) não receberem HTML
+    sablier http://sablier:10000 {
+        group vaultwarden
+        session_duration {$VAULTWARDEN_SESSION_DURATION}
+        blocking {
+            timeout 2m
+        }
+    }
+
+    reverse_proxy vaultwarden:80 {
+        header_up X-Forwarded-Proto https
+        header_up X-Real-IP {remote_host}
+    }
+
+    header {
+        -Server
+        X-Content-Type-Options nosniff
+    }
+}
+
+# ── Linkwarden ────────────────────────────────────────────────────────────────
+{$LINKWARDEN_DOMAIN} {
+    tls internal
+
+    sablier http://sablier:10000 {
+        group linkwarden
+        session_duration {$LINKWARDEN_SESSION_DURATION}
+        dynamic {
+            display_name Linkwarden
+            show_details true
+            theme        hacker-terminal
+            refresh_frequency 5s
+            waiting_timeout   2m
+        }
+    }
+
+    # Sem limite de body para uploads de páginas arquivadas
+    request_body {
+        max_size 0
+    }
+
+    reverse_proxy linkwarden:3000 {
+        header_up X-Forwarded-Proto https
+        header_up X-Real-IP {remote_host}
+    }
+
+    header {
+        -Server
+        X-Content-Type-Options nosniff
+        Referrer-Policy same-origin
+    }
+}
