@@ -1,0 +1,277 @@
+services:
+
+  # ── Reverse proxy + TLS (sempre ativo) ────────────────────────────────────
+  caddy:
+    build:
+      context: ./caddy
+      dockerfile: Dockerfile
+    image: ${CADDY_IMAGE:-homelab-caddy:local}
+    container_name: homelab-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /srv/homelab/caddy/data:/data
+      - /srv/homelab/caddy/config:/config
+    networks:
+      - homelab
+    depends_on:
+      - sablier
+    environment:
+      GITEA_DOMAIN: ${GITEA_DOMAIN:-git.home.arpa}
+      VAULTWARDEN_DOMAIN: ${VAULTWARDEN_DOMAIN:-vault.home.arpa}
+      LINKWARDEN_DOMAIN: ${LINKWARDEN_DOMAIN:-links.home.arpa}
+      GITEA_SESSION_DURATION: ${GITEA_SESSION_DURATION:-30m}
+      VAULTWARDEN_SESSION_DURATION: ${VAULTWARDEN_SESSION_DURATION:-10m}
+      LINKWARDEN_SESSION_DURATION: ${LINKWARDEN_SESSION_DURATION:-30m}
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  # ── Scale-to-zero manager (sempre ativo) ──────────────────────────────────
+  sablier:
+    image: ${SABLIER_IMAGE:-acouvreur/sablier:1.8.0}
+    container_name: homelab-sablier
+    restart: unless-stopped
+    command: start --provider.name=docker
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - homelab
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.2"
+
+  # ── Gitea ──────────────────────────────────────────────────────────────────
+  gitea:
+    image: ${GITEA_IMAGE:-gitea/gitea:1.22.6}
+    container_name: homelab-gitea
+    restart: unless-stopped
+    ports:
+      - "${GITEA_SSH_PORT:-2222}:22"
+    volumes:
+      - /srv/homelab/gitea/data:/data
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - homelab
+    environment:
+      USER_UID: ${PUID:-1000}
+      USER_GID: ${PGID:-1000}
+      GITEA__database__DB_TYPE: postgres
+      GITEA__database__HOST: gitea-db:5432
+      GITEA__database__NAME: ${GITEA_DB_NAME:-gitea}
+      GITEA__database__USER: ${GITEA_DB_USER:-gitea}
+      GITEA__database__PASSWD: ${GITEA_DB_PASSWORD}
+      GITEA__server__ROOT_URL: ${GITEA_ROOT_URL:-https://git.home.arpa}
+      GITEA__server__SSH_DOMAIN: ${GITEA_SSH_DOMAIN:-git.home.arpa}
+      GITEA__server__SSH_PORT: ${GITEA_SSH_PORT:-2222}
+      GITEA__server__SSH_LISTEN_PORT: "22"
+      GITEA__server__DOMAIN: ${GITEA_DOMAIN:-git.home.arpa}
+      GITEA__server__LFS_START_SERVER: "true"
+      GITEA__service__DISABLE_REGISTRATION: "true"
+      GITEA__packages__ENABLED: "true"
+      GITEA__log__LEVEL: Warn
+      TZ: ${TZ:-America/Sao_Paulo}
+    depends_on:
+      gitea-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/api/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    labels:
+      sablier.enable: "true"
+      sablier.group: gitea
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+  gitea-db:
+    image: ${GITEA_DB_IMAGE:-postgres:16.4-alpine}
+    container_name: homelab-gitea-db
+    restart: unless-stopped
+    volumes:
+      - /srv/homelab/gitea/postgres:/var/lib/postgresql/data
+    networks:
+      - homelab
+    environment:
+      POSTGRES_DB: ${GITEA_DB_NAME:-gitea}
+      POSTGRES_USER: ${GITEA_DB_USER:-gitea}
+      POSTGRES_PASSWORD: ${GITEA_DB_PASSWORD}
+      TZ: ${TZ:-America/Sao_Paulo}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      sablier.enable: "true"
+      sablier.group: gitea
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  # ── Vaultwarden ───────────────────────────────────────────────────────────
+  vaultwarden:
+    image: ${VAULTWARDEN_IMAGE:-vaultwarden/server:1.32.7}
+    container_name: homelab-vaultwarden
+    restart: unless-stopped
+    volumes:
+      - /srv/homelab/vaultwarden/data:/data
+    networks:
+      - homelab
+    environment:
+      DOMAIN: ${VAULTWARDEN_DOMAIN:-https://vault.home.arpa}
+      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
+      SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
+      WEBSOCKET_ENABLED: "true"
+      SMTP_HOST: ${VAULTWARDEN_SMTP_HOST:-}
+      SMTP_PORT: ${VAULTWARDEN_SMTP_PORT:-587}
+      SMTP_SECURITY: ${VAULTWARDEN_SMTP_SECURITY:-starttls}
+      SMTP_USERNAME: ${VAULTWARDEN_SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${VAULTWARDEN_SMTP_PASSWORD:-}
+      SMTP_FROM: ${VAULTWARDEN_SMTP_FROM:-}
+      TZ: ${TZ:-America/Sao_Paulo}
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      sablier.enable: "true"
+      sablier.group: vaultwarden
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+  # ── Linkwarden ────────────────────────────────────────────────────────────
+  linkwarden:
+    image: ${LINKWARDEN_IMAGE:-ghcr.io/linkwarden/linkwarden:v2.7.1}
+    container_name: homelab-linkwarden
+    restart: unless-stopped
+    volumes:
+      - /srv/homelab/linkwarden/data:/data/data
+    networks:
+      - homelab
+    environment:
+      DATABASE_URL: postgresql://${LINKWARDEN_DB_USER:-linkwarden}:${LINKWARDEN_DB_PASSWORD}@linkwarden-db:5432/${LINKWARDEN_DB_NAME:-linkwarden}
+      NEXTAUTH_SECRET: ${LINKWARDEN_NEXTAUTH_SECRET}
+      NEXTAUTH_URL: ${LINKWARDEN_NEXTAUTH_URL:-https://links.home.arpa}
+      DISABLE_REGISTRATION: ${LINKWARDEN_DISABLE_REGISTRATION:-true}
+      NEXT_PUBLIC_DISABLE_REGISTRATION: ${LINKWARDEN_DISABLE_REGISTRATION:-true}
+      TZ: ${TZ:-America/Sao_Paulo}
+    depends_on:
+      linkwarden-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      sablier.enable: "true"
+      sablier.group: linkwarden
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+  linkwarden-db:
+    image: ${LINKWARDEN_DB_IMAGE:-postgres:16.4-alpine}
+    container_name: homelab-linkwarden-db
+    restart: unless-stopped
+    volumes:
+      - /srv/homelab/linkwarden/postgres:/var/lib/postgresql/data
+    networks:
+      - homelab
+    environment:
+      POSTGRES_DB: ${LINKWARDEN_DB_NAME:-linkwarden}
+      POSTGRES_USER: ${LINKWARDEN_DB_USER:-linkwarden}
+      POSTGRES_PASSWORD: ${LINKWARDEN_DB_PASSWORD}
+      TZ: ${TZ:-America/Sao_Paulo}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      sablier.enable: "true"
+      sablier.group: linkwarden
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+networks:
+  homelab:
+    name: homelab
+    driver: bridge
