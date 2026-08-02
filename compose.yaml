@@ -21,9 +21,7 @@ services:
     depends_on:
       - sablier
     environment:
-      GITEA_DOMAIN: ${GITEA_DOMAIN:-git.home.arpa}
-      VAULTWARDEN_DOMAIN: ${VAULTWARDEN_DOMAIN:-vault.home.arpa}
-      LINKWARDEN_DOMAIN: ${LINKWARDEN_DOMAIN:-links.home.arpa}
+      TAILSCALE_MACHINE: ${TAILSCALE_MACHINE}
       GITEA_SESSION_DURATION: ${GITEA_SESSION_DURATION:-30m}
       VAULTWARDEN_SESSION_DURATION: ${VAULTWARDEN_SESSION_DURATION:-10m}
       LINKWARDEN_SESSION_DURATION: ${LINKWARDEN_SESSION_DURATION:-30m}
@@ -63,6 +61,33 @@ services:
           memory: 128M
           cpus: "0.2"
 
+  # ── DNS interno – resolve *.nisse.ts.net → IP Tailscale (sempre ativo) ───
+  adguard:
+    image: ${ADGUARD_IMAGE:-adguard/adguardhome:v0.107.52}
+    container_name: homelab-adguard
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "3080:3000/tcp"   # Admin UI (host:3080 → container:3000)
+    volumes:
+      - /srv/homelab/adguard/work:/opt/adguardhome/work
+      - /srv/homelab/adguard/conf:/opt/adguardhome/conf
+    networks:
+      - homelab
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.2"
+
   # ── Gitea ──────────────────────────────────────────────────────────────────
   gitea:
     image: ${GITEA_IMAGE:-gitea/gitea:1.22.6}
@@ -83,11 +108,11 @@ services:
       GITEA__database__NAME: ${GITEA_DB_NAME:-gitea}
       GITEA__database__USER: ${GITEA_DB_USER:-gitea}
       GITEA__database__PASSWD: ${GITEA_DB_PASSWORD}
-      GITEA__server__ROOT_URL: ${GITEA_ROOT_URL:-https://git.home.arpa}
-      GITEA__server__SSH_DOMAIN: ${GITEA_SSH_DOMAIN:-git.home.arpa}
+      GITEA__server__ROOT_URL: "https://git.${TAILSCALE_MACHINE}.ts.net"
+      GITEA__server__DOMAIN: "git.${TAILSCALE_MACHINE}.ts.net"
+      GITEA__server__SSH_DOMAIN: "${TAILSCALE_MACHINE}.ts.net"
       GITEA__server__SSH_PORT: ${GITEA_SSH_PORT:-2222}
       GITEA__server__SSH_LISTEN_PORT: "22"
-      GITEA__server__DOMAIN: ${GITEA_DOMAIN:-git.home.arpa}
       GITEA__server__LFS_START_SERVER: "true"
       GITEA__service__DISABLE_REGISTRATION: "true"
       GITEA__packages__ENABLED: "true"
@@ -163,7 +188,7 @@ services:
     networks:
       - homelab
     environment:
-      DOMAIN: ${VAULTWARDEN_DOMAIN:-https://vault.home.arpa}
+      DOMAIN: "https://vault.${TAILSCALE_MACHINE}.ts.net"
       ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
       WEBSOCKET_ENABLED: "true"
@@ -208,7 +233,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${LINKWARDEN_DB_USER:-linkwarden}:${LINKWARDEN_DB_PASSWORD}@linkwarden-db:5432/${LINKWARDEN_DB_NAME:-linkwarden}
       NEXTAUTH_SECRET: ${LINKWARDEN_NEXTAUTH_SECRET}
-      NEXTAUTH_URL: ${LINKWARDEN_NEXTAUTH_URL:-https://links.home.arpa}
+      NEXTAUTH_URL: "https://links.${TAILSCALE_MACHINE}.ts.net"
       DISABLE_REGISTRATION: ${LINKWARDEN_DISABLE_REGISTRATION:-true}
       NEXT_PUBLIC_DISABLE_REGISTRATION: ${LINKWARDEN_DISABLE_REGISTRATION:-true}
       TZ: ${TZ:-America/Sao_Paulo}

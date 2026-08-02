@@ -1,10 +1,9 @@
 {
-    # Sablier deve rodar antes do reverse_proxy em cada bloco de site
     order sablier before reverse_proxy
 }
 
 # ── Gitea ─────────────────────────────────────────────────────────────────────
-{$GITEA_DOMAIN} {
+git.{$TAILSCALE_MACHINE}.ts.net {
     tls internal
 
     sablier http://sablier:10000 {
@@ -19,13 +18,11 @@
         }
     }
 
-    # Sem limite de body: LFS, Container Registry e uploads grandes
     request_body {
         max_size 0
     }
 
     reverse_proxy gitea:3000 {
-        # Necessário para git-http-backend e git smart-HTTP
         flush_interval -1
         header_up X-Forwarded-Proto https
         header_up X-Real-IP {remote_host}
@@ -39,10 +36,9 @@
 }
 
 # ── Vaultwarden ───────────────────────────────────────────────────────────────
-{$VAULTWARDEN_DOMAIN} {
+vault.{$TAILSCALE_MACHINE}.ts.net {
     tls internal
 
-    # Modo blocking para clientes de API (Bitwarden apps) não receberem HTML
     sablier http://sablier:10000 {
         group vaultwarden
         session_duration {$VAULTWARDEN_SESSION_DURATION}
@@ -63,7 +59,7 @@
 }
 
 # ── Linkwarden ────────────────────────────────────────────────────────────────
-{$LINKWARDEN_DOMAIN} {
+links.{$TAILSCALE_MACHINE}.ts.net {
     tls internal
 
     sablier http://sablier:10000 {
@@ -78,7 +74,6 @@
         }
     }
 
-    # Sem limite de body para uploads de páginas arquivadas
     request_body {
         max_size 0
     }
