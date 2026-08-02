@@ -96,6 +96,7 @@ backup_dir "gitea-data"         /srv/homelab/gitea/data
 backup_dir "vaultwarden-data"   /srv/homelab/vaultwarden/data
 backup_dir "linkwarden-data"    /srv/homelab/linkwarden/data
 backup_dir "caddy-data"         /srv/homelab/caddy/data
+backup_dir "adguard-conf"       /srv/homelab/adguard/conf
 
 # ── Finaliza manifesto ────────────────────────────────────────────────────────
 {

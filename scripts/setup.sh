@@ -67,7 +67,9 @@ $SUDO mkdir -p \
     "${BASE}/gitea/postgres" \
     "${BASE}/vaultwarden/data" \
     "${BASE}/linkwarden/data" \
-    "${BASE}/linkwarden/postgres"
+    "${BASE}/linkwarden/postgres" \
+    "${BASE}/adguard/work" \
+    "${BASE}/adguard/conf"
 
 # Gitea data: propriedade do usuário host
 $SUDO chown -R "${PUID}:${PGID}" "${BASE}/gitea/data"
@@ -88,6 +90,9 @@ $SUDO chmod -R 750 "${BASE}/linkwarden/data"
 
 # Caddy
 $SUDO chmod 750 "${BASE}/caddy/data" "${BASE}/caddy/config"
+
+# AdGuard
+$SUDO chmod 750 "${BASE}/adguard/work" "${BASE}/adguard/conf"
 
 info "Diretórios criados com sucesso."
 
