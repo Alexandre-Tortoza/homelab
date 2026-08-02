@@ -89,23 +89,53 @@ sudo ./scripts/setup.sh
 ./scripts/status.sh
 ```
 
-## 6. Configuração de DNS
+## 6. Configuração de DNS com Tailscale
 
-Adicione no `/etc/hosts` de cada cliente (ou configure no roteador/Pihole):
+Os domínios usam o formato `git.MACHINE.ts.net`, onde `MACHINE` é o nome da sua máquina no Tailscale.
+
+**Encontre o nome e o IP Tailscale da máquina:**
+
+```bash
+tailscale status
+# ou no painel: https://login.tailscale.com/admin/machines
+# O IP começa com 100.x.x.x
+```
+
+### Opção A — `/etc/hosts` em cada cliente (mais simples)
+
+Adicione em cada dispositivo que vai acessar o homelab:
 
 ```
-<IP-DO-SERVIDOR>  git.home.arpa vault.home.arpa links.home.arpa
+# Linux/macOS: /etc/hosts
+# Windows: C:\Windows\System32\drivers\etc\hosts
+100.x.x.x  git.MACHINE.ts.net  vault.MACHINE.ts.net  links.MACHINE.ts.net
 ```
+
+### Opção B — Tailscale split-DNS (recomendado, zero config nos clientes)
+
+Requer um resolvedor DNS local no servidor (Pi-hole, AdGuard Home ou CoreDNS).
+Configure-o com registros wildcard `*.MACHINE.ts.net → 100.x.x.x`, depois:
+
+```
+Tailscale Admin → DNS → Add nameserver
+→ IP Tailscale do servidor
+→ Restrict to domain: MACHINE.ts.net
+```
+
+Todos os dispositivos Tailscale passam a resolver `*.MACHINE.ts.net` automaticamente.
 
 ## 7. Uso com Tailscale
 
 ```bash
+# Instale no servidor
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
-tailscale ip -4  # anote o IP
+
+# Verifique o IP atribuído (sempre 100.x.x.x)
+tailscale ip -4
 ```
 
-No Tailscale Admin → DNS → split-DNS para `home.arpa` apontando para o IP Tailscale do servidor. Isso configura automaticamente todos os dispositivos da rede Tailscale.
+Com MagicDNS ativo no Tailscale Admin, o nome `MACHINE` já resolve entre dispositivos Tailscale. Os subdomínios (`git.`, `vault.`, `links.`) precisam da Opção A ou B acima.
 
 ## 8. Instalação do certificado raiz do Caddy
 
