@@ -69,7 +69,7 @@ services:
     ports:
       - "${TAILSCALE_IP}:53:53/tcp"
       - "${TAILSCALE_IP}:53:53/udp"
-      - "3080:3000/tcp"   # Admin UI (host:3080 → container:3000)
+      - "${TAILSCALE_IP}:3080:80/tcp"   # Admin UI via Tailscale
     volumes:
       - /srv/homelab/adguard/work:/opt/adguardhome/work
       - /srv/homelab/adguard/conf:/opt/adguardhome/conf
