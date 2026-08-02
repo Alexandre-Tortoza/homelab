@@ -6,6 +6,7 @@ services:
       context: ./caddy
       dockerfile: Dockerfile
     image: ${CADDY_IMAGE:-homelab-caddy:local}
+    pull_policy: build
     container_name: homelab-caddy
     restart: unless-stopped
     ports:
