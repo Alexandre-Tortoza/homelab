@@ -163,7 +163,7 @@ Import-Certificate -FilePath caddy-root.crt -CertStoreLocation Cert:\LocalMachin
 
 ### Gitea
 
-Na primeira visita a `https://git.home.arpa`, o assistente de instalação cria o admin. Ou via CLI:
+Na primeira visita a `https://git.<machine>.<tailnet>.ts.net`, o assistente de instalação cria o admin. Ou via CLI:
 
 ```bash
 docker exec -it homelab-gitea gitea admin user create \
@@ -173,32 +173,32 @@ docker exec -it homelab-gitea gitea admin user create \
 
 ### Vaultwarden
 
-Acesse `https://vault.home.arpa/admin` com o `VAULTWARDEN_ADMIN_TOKEN`. Para criar o primeiro usuário, use a interface normal com o cadastro temporariamente ativado pelo painel admin.
+Acesse `https://vault.<machine>.<tailnet>.ts.net/admin` com o `VAULTWARDEN_ADMIN_TOKEN`. Para criar o primeiro usuário, use a interface normal com o cadastro temporariamente ativado pelo painel admin.
 
 ### Linkwarden
 
-O primeiro usuário criado em `https://links.home.arpa` recebe permissões de admin automaticamente.
+O primeiro usuário criado em `https://links.<machine>.<tailnet>.ts.net` recebe permissões de admin automaticamente.
 
 ## 10. Git por SSH no Gitea
 
 ```bash
-git clone ssh://git@git.home.arpa:2222/usuario/repo.git
+git clone ssh://git@git.<machine>.<tailnet>.ts.net:2222/usuario/repo.git
 
 # ou configure ~/.ssh/config
-Host git.home.arpa
+Host git.<machine>.<tailnet>.ts.net
   Port 2222
   User git
 ```
 
-> **Limitação scale-to-zero:** SSH não acorda o Gitea automaticamente. Acesse `https://git.home.arpa` primeiro para iniciá-lo, depois use SSH.
+> **Limitação scale-to-zero:** SSH não acorda o Gitea automaticamente. Acesse `https://git.<machine>.<tailnet>.ts.net` primeiro para iniciá-lo, depois use SSH.
 
 ## 11. Container Registry do Gitea
 
 ```bash
-docker login git.home.arpa
-docker tag app:latest git.home.arpa/usuario/app:latest
-docker push git.home.arpa/usuario/app:latest
-docker pull git.home.arpa/usuario/app:latest
+docker login git.<machine>.<tailnet>.ts.net
+docker tag app:latest git.<machine>.<tailnet>.ts.net/usuario/app:latest
+docker push git.<machine>.<tailnet>.ts.net/usuario/app:latest
+docker pull git.<machine>.<tailnet>.ts.net/usuario/app:latest
 ```
 
 ## 12. Backup
@@ -276,7 +276,7 @@ docker exec homelab-caddy wget -qO- http://sablier:10000/api/strategies/groups
 docker compose config
 
 # Ver certificado TLS
-openssl s_client -connect git.home.arpa:443 -servername git.home.arpa
+openssl s_client -connect git.<machine>.<tailnet>.ts.net:443 -servername git.<machine>.<tailnet>.ts.net
 ```
 
 ### Scale-to-zero não funciona

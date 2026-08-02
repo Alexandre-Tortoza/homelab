@@ -1,7 +1,7 @@
-FROM caddy:2.9.1-builder AS builder
+FROM caddy:2.11.4-builder AS builder
 
 RUN xcaddy build \
-    --with github.com/acouvreur/sablier/plugins/caddy@v1.8.0
+    --with github.com/sablierapp/sablier-caddy-plugin@v1.0.2
 
-FROM caddy:2.9.1-alpine
+FROM caddy:2.11.4-alpine
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy

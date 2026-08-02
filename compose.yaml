@@ -40,7 +40,7 @@ services:
 
   # ── Scale-to-zero manager (sempre ativo) ──────────────────────────────────
   sablier:
-    image: ${SABLIER_IMAGE:-acouvreur/sablier:1.8.0}
+    image: ${SABLIER_IMAGE:-sablierapp/sablier:1.16.1}
     container_name: homelab-sablier
     restart: unless-stopped
     command: start --provider.name=docker
@@ -61,14 +61,14 @@ services:
           memory: 128M
           cpus: "0.2"
 
-  # ── DNS interno – resolve *.nisse.ts.net → IP Tailscale (sempre ativo) ───
+  # ── DNS interno para a tailnet (sempre ativo) ──────────────────────────────
   adguard:
-    image: ${ADGUARD_IMAGE:-adguard/adguardhome:v0.107.52}
+    image: ${ADGUARD_IMAGE:-adguard/adguardhome:v0.107.78}
     container_name: homelab-adguard
     restart: unless-stopped
     ports:
-      - "53:53/tcp"
-      - "53:53/udp"
+      - "${TAILSCALE_IP}:53:53/tcp"
+      - "${TAILSCALE_IP}:53:53/udp"
       - "3080:3000/tcp"   # Admin UI (host:3080 → container:3000)
     volumes:
       - /srv/homelab/adguard/work:/opt/adguardhome/work
@@ -90,7 +90,7 @@ services:
 
   # ── Gitea ──────────────────────────────────────────────────────────────────
   gitea:
-    image: ${GITEA_IMAGE:-gitea/gitea:1.22.6}
+    image: ${GITEA_IMAGE:-gitea/gitea:1.27.1}
     container_name: homelab-gitea
     restart: unless-stopped
     ports:
@@ -144,11 +144,11 @@ services:
           cpus: "1.0"
 
   gitea-db:
-    image: ${GITEA_DB_IMAGE:-postgres:16.4-alpine}
+    image: ${GITEA_DB_IMAGE:-postgres:18.4-alpine}
     container_name: homelab-gitea-db
     restart: unless-stopped
     volumes:
-      - /srv/homelab/gitea/postgres:/var/lib/postgresql/data
+      - /srv/homelab/gitea/postgres:/var/lib/postgresql
     networks:
       - homelab
     environment:
@@ -180,7 +180,7 @@ services:
 
   # ── Vaultwarden ───────────────────────────────────────────────────────────
   vaultwarden:
-    image: ${VAULTWARDEN_IMAGE:-vaultwarden/server:1.32.7}
+    image: ${VAULTWARDEN_IMAGE:-vaultwarden/server:1.37.1}
     container_name: homelab-vaultwarden
     restart: unless-stopped
     volumes:
@@ -192,12 +192,6 @@ services:
       ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
       WEBSOCKET_ENABLED: "true"
-      SMTP_HOST: ${VAULTWARDEN_SMTP_HOST:-}
-      SMTP_PORT: ${VAULTWARDEN_SMTP_PORT:-587}
-      SMTP_SECURITY: ${VAULTWARDEN_SMTP_SECURITY:-starttls}
-      SMTP_USERNAME: ${VAULTWARDEN_SMTP_USERNAME:-}
-      SMTP_PASSWORD: ${VAULTWARDEN_SMTP_PASSWORD:-}
-      SMTP_FROM: ${VAULTWARDEN_SMTP_FROM:-}
       TZ: ${TZ:-America/Sao_Paulo}
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:80/"]
@@ -223,7 +217,7 @@ services:
 
   # ── Linkwarden ────────────────────────────────────────────────────────────
   linkwarden:
-    image: ${LINKWARDEN_IMAGE:-ghcr.io/linkwarden/linkwarden:v2.7.1}
+    image: ${LINKWARDEN_IMAGE:-ghcr.io/linkwarden/linkwarden:v2.8.4}
     container_name: homelab-linkwarden
     restart: unless-stopped
     volumes:
@@ -241,7 +235,7 @@ services:
       linkwarden-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:3000/"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -263,11 +257,11 @@ services:
           cpus: "1.0"
 
   linkwarden-db:
-    image: ${LINKWARDEN_DB_IMAGE:-postgres:16.4-alpine}
+    image: ${LINKWARDEN_DB_IMAGE:-postgres:18.4-alpine}
     container_name: homelab-linkwarden-db
     restart: unless-stopped
     volumes:
-      - /srv/homelab/linkwarden/postgres:/var/lib/postgresql/data
+      - /srv/homelab/linkwarden/postgres:/var/lib/postgresql
     networks:
       - homelab
     environment:

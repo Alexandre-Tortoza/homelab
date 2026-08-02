@@ -21,8 +21,8 @@ echo ""
 echo "URLs:"
 # shellcheck source=/dev/null
 source .env
-echo "  Gitea:       https://${GITEA_DOMAIN:-git.home.arpa}"
-echo "  Vaultwarden: https://${VAULTWARDEN_DOMAIN:-vault.home.arpa}"
-echo "  Linkwarden:  https://${LINKWARDEN_DOMAIN:-links.home.arpa}"
+echo "  Gitea:       https://git.${TAILSCALE_MACHINE}.ts.net"
+echo "  Vaultwarden: https://vault.${TAILSCALE_MACHINE}.ts.net"
+echo "  Linkwarden:  https://links.${TAILSCALE_MACHINE}.ts.net"
 echo ""
 echo "Para ver o status: ./scripts/status.sh"
