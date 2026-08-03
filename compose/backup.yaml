@@ -1,0 +1,52 @@
+services:
+
+  # ── Backup encriptado (sempre ativo) ──────────────────────────────────────
+  kopia:
+    image: ${KOPIA_IMAGE:-kopia/kopia:0.22.3}
+    container_name: homelab-kopia
+    restart: unless-stopped
+    command:
+      - server
+      - start
+      - --disable-csrf-token-checks
+      - --insecure
+      - --address=0.0.0.0:51515
+      - --server-username=${KOPIA_SERVER_USERNAME:-admin}
+      - --server-password=${KOPIA_SERVER_PASSWORD}
+    volumes:
+      - ${DATA_DIR}/kopia/config:/app/config
+      - ${DATA_DIR}/kopia/cache:/app/cache
+      - ${DATA_DIR}/kopia/logs:/app/logs
+      - ${KOPIA_REPOSITORY_PATH}:/repository
+      - ${DATA_DIR}/caddy:/source/caddy:ro
+      - ${DATA_DIR}/gitea:/source/gitea:ro
+      - ${DATA_DIR}/vaultwarden:/source/vaultwarden:ro
+      - ${DATA_DIR}/linkwarden:/source/linkwarden:ro
+      - ${DATA_DIR}/actual/data:/source/actual:ro
+      - ${DATA_DIR}/mealie/data:/source/mealie:ro
+      - ${DATA_DIR}/immich/library:/source/immich:ro
+      - ${DATA_DIR}/grafana/data:/source/grafana:ro
+      - ${DATA_DIR}/sql-dumps:/source/sql-dumps:ro
+    networks:
+      - homelab
+    environment:
+      KOPIA_CONFIG_PATH: /app/config/repository.config
+      KOPIA_CACHE_DIRECTORY: /app/cache
+      KOPIA_PASSWORD: ${KOPIA_PASSWORD}
+      TZ: ${TZ:-America/Sao_Paulo}
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+networks:
+  homelab:
+    external: true

@@ -1,0 +1,42 @@
+services:
+
+  # ── Vaultwarden ───────────────────────────────────────────────────────────
+  vaultwarden:
+    image: ${VAULTWARDEN_IMAGE:-vaultwarden/server:1.37.1}
+    container_name: homelab-vaultwarden
+    restart: unless-stopped
+    volumes:
+      - ${DATA_DIR}/vaultwarden/data:/data
+    networks:
+      - homelab
+    environment:
+      DOMAIN: "https://vault.${HOMELAB_DOMAIN}"
+      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
+      SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
+      WEBSOCKET_ENABLED: "true"
+      TZ: ${TZ:-America/Sao_Paulo}
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      sablier.enable: "true"
+      sablier.group: vaultwarden
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+networks:
+  homelab:
+    external: true

@@ -2,8 +2,40 @@
     order sablier before reverse_proxy
 }
 
+# ── Homepage ─────────────────────────────────────────────────────────────────
+home.{$HOMELAB_DOMAIN} {
+    tls internal
+
+    reverse_proxy homepage:3000 {
+        header_up X-Forwarded-Proto https
+        header_up X-Real-IP {remote_host}
+    }
+
+    header {
+        -Server
+        X-Content-Type-Options nosniff
+        Referrer-Policy same-origin
+    }
+}
+
+# ── Kopia ────────────────────────────────────────────────────────────────────
+kopia.{$HOMELAB_DOMAIN} {
+    tls internal
+
+    reverse_proxy kopia:51515 {
+        header_up X-Forwarded-Proto https
+        header_up X-Real-IP {remote_host}
+    }
+
+    header {
+        -Server
+        X-Content-Type-Options nosniff
+        Referrer-Policy same-origin
+    }
+}
+
 # ── Gitea ─────────────────────────────────────────────────────────────────────
-git.{$TAILSCALE_MACHINE}.ts.net {
+git.{$HOMELAB_DOMAIN} {
     tls internal
 
     sablier http://sablier:10000 {
@@ -36,7 +68,7 @@ git.{$TAILSCALE_MACHINE}.ts.net {
 }
 
 # ── Vaultwarden ───────────────────────────────────────────────────────────────
-vault.{$TAILSCALE_MACHINE}.ts.net {
+vault.{$HOMELAB_DOMAIN} {
     tls internal
 
     sablier http://sablier:10000 {
@@ -59,7 +91,7 @@ vault.{$TAILSCALE_MACHINE}.ts.net {
 }
 
 # ── Linkwarden ────────────────────────────────────────────────────────────────
-links.{$TAILSCALE_MACHINE}.ts.net {
+links.{$HOMELAB_DOMAIN} {
     tls internal
 
     sablier http://sablier:10000 {
@@ -79,6 +111,102 @@ links.{$TAILSCALE_MACHINE}.ts.net {
     }
 
     reverse_proxy linkwarden:3000 {
+        header_up X-Forwarded-Proto https
+        header_up X-Real-IP {remote_host}
+    }
+
+    header {
+        -Server
+        X-Content-Type-Options nosniff
+        Referrer-Policy same-origin
+    }
+}
+
+# ── Actual Budget ─────────────────────────────────────────────────────────────
+budget.{$HOMELAB_DOMAIN} {
+    tls internal
+
+    sablier http://sablier:10000 {
+        group actual
+        session_duration {$ACTUAL_SESSION_DURATION}
+        dynamic {
+            display_name "Actual Budget"
+            show_details true
+            theme        hacker-terminal
+            refresh_frequency 5s
+            waiting_timeout   2m
+        }
+    }
+
+    reverse_proxy actual-budget:5006 {
+        header_up X-Forwarded-Proto https
+        header_up X-Real-IP {remote_host}
+    }
+
+    header {
+        -Server
+        X-Content-Type-Options nosniff
+        Referrer-Policy same-origin
+    }
+}
+
+# ── Mealie ────────────────────────────────────────────────────────────────────
+mealie.{$HOMELAB_DOMAIN} {
+    tls internal
+
+    sablier http://sablier:10000 {
+        group mealie
+        session_duration {$MEALIE_SESSION_DURATION}
+        dynamic {
+            display_name Mealie
+            show_details true
+            theme        hacker-terminal
+            refresh_frequency 5s
+            waiting_timeout   2m
+        }
+    }
+
+    request_body {
+        max_size 0
+    }
+
+    reverse_proxy mealie:9000 {
+        header_up X-Forwarded-Proto https
+        header_up X-Real-IP {remote_host}
+    }
+
+    header {
+        -Server
+        X-Content-Type-Options nosniff
+        Referrer-Policy same-origin
+    }
+}
+
+# ── Immich ────────────────────────────────────────────────────────────────────
+photos.{$HOMELAB_DOMAIN} {
+    tls internal
+
+    request_body {
+        max_size 0
+    }
+
+    reverse_proxy immich-server:2283 {
+        flush_interval -1
+        header_up X-Forwarded-Proto https
+        header_up X-Real-IP {remote_host}
+    }
+
+    header {
+        -Server
+        X-Content-Type-Options nosniff
+    }
+}
+
+# ── Grafana ───────────────────────────────────────────────────────────────────
+grafana.{$HOMELAB_DOMAIN} {
+    tls internal
+
+    reverse_proxy grafana:3000 {
         header_up X-Forwarded-Proto https
         header_up X-Real-IP {remote_host}
     }

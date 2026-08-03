@@ -3,3 +3,4 @@ backups/*
 !backups/.gitkeep
 data/*
 !data/.gitkeep
+homepage/logs/

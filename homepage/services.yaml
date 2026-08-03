@@ -1,0 +1,58 @@
+- Applications:
+    - Gitea:
+        href: https://git.{{HOMEPAGE_VAR_HOMELAB_DOMAIN}}
+        description: Git, issues e pacotes
+        icon: gitea.svg
+
+    - Vaultwarden:
+        href: https://vault.{{HOMEPAGE_VAR_HOMELAB_DOMAIN}}
+        description: Gerenciador de senhas
+        icon: vaultwarden.svg
+
+    - Linkwarden:
+        href: https://links.{{HOMEPAGE_VAR_HOMELAB_DOMAIN}}
+        description: Arquivo de bookmarks
+        icon: linkwarden.svg
+
+    - Actual Budget:
+        href: https://budget.{{HOMEPAGE_VAR_HOMELAB_DOMAIN}}
+        description: Finanças pessoais
+        icon: actual-budget.svg
+
+    - Mealie:
+        href: https://mealie.{{HOMEPAGE_VAR_HOMELAB_DOMAIN}}
+        description: Receitas e planejamento de refeições
+        icon: mealie.svg
+
+    - Immich:
+        href: https://photos.{{HOMEPAGE_VAR_HOMELAB_DOMAIN}}
+        description: Biblioteca de fotos
+        icon: immich.svg
+        widget:
+          type: ping
+          url: http://immich-server:2283/api/server/ping
+
+- Infrastructure:
+    - Kopia:
+        href: https://kopia.{{HOMEPAGE_VAR_HOMELAB_DOMAIN}}
+        description: Backups criptografados
+        icon: kopia.svg
+        widget:
+          type: ping
+          url: http://kopia:51515
+
+    - Grafana:
+        href: https://grafana.{{HOMEPAGE_VAR_HOMELAB_DOMAIN}}
+        description: Métricas e observabilidade
+        icon: grafana.svg
+        widget:
+          type: ping
+          url: http://grafana:3000/api/health
+
+    - CoreDNS:
+        description: Resolver DNS split para Tailnet
+        icon: mdi-dns-outline
+
+    - Caddy:
+        description: Reverse proxy com TLS interno
+        icon: caddy.svg

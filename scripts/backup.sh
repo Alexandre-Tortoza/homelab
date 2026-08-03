@@ -9,8 +9,9 @@ cd "${PROJECT_DIR}"
 # shellcheck source=/dev/null
 source .env
 
+DATA_DIR="${DATA_DIR:-/mnt/hd2/homelab}"
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
-BACKUP_DIR="${PROJECT_DIR}/backups/${TIMESTAMP}"
+DUMP_DEST="${DATA_DIR}/sql-dumps/${TIMESTAMP}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -21,92 +22,92 @@ info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
-mkdir -p "${BACKUP_DIR}"
-
-# Containers que precisam ser garantidamente rodando para o dump do banco
-GITEA_RUNNING=false
-LINKWARDEN_RUNNING=false
+mkdir -p "${DUMP_DEST}"
 
 cleanup() {
     local exit_code=$?
     info "Finalizando backup (código de saída: ${exit_code})..."
-    # Reinicia serviços se necessário – eles estavam rodando via Sablier
-    # não precisamos de ação aqui; apenas garantimos que o manifesto foi escrito
-    if [[ -d "${BACKUP_DIR}" ]]; then
-        echo "exit_code=${exit_code}" >> "${BACKUP_DIR}/manifest.txt"
+    if [[ -d "${DUMP_DEST}" ]]; then
+        echo "exit_code=${exit_code}" >> "${DUMP_DEST}/manifest.txt"
     fi
     if [[ ${exit_code} -ne 0 ]]; then
-        error "Backup FALHOU. Verifique ${BACKUP_DIR}/manifest.txt"
+        error "Backup FALHOU. Verifique ${DUMP_DEST}/manifest.txt"
     fi
 }
 trap cleanup EXIT
 
 info "Iniciando backup – ${TIMESTAMP}"
-info "Destino: ${BACKUP_DIR}"
+info "Dumps SQL: ${DUMP_DEST}"
+info "Dados: ${DATA_DIR}"
 
 # ── Manifesto ─────────────────────────────────────────────────────────────────
-cat > "${BACKUP_DIR}/manifest.txt" <<EOF
+cat > "${DUMP_DEST}/manifest.txt" <<EOF
 timestamp=${TIMESTAMP}
 host=$(hostname)
-project_dir=${PROJECT_DIR}
+data_dir=${DATA_DIR}
 EOF
 
-# ── Acorda os containers para o dump ─────────────────────────────────────────
+# ── Acorda containers para o dump ─────────────────────────────────────────────
 wake_container() {
     local name="$1"
     if ! docker inspect --format '{{.State.Running}}' "${name}" 2>/dev/null | grep -q true; then
         info "Iniciando container ${name} para backup..."
         docker start "${name}"
         sleep 5
-        echo "started_for_backup=true" >> "${BACKUP_DIR}/manifest.txt"
+        echo "started_for_backup=${name}" >> "${DUMP_DEST}/manifest.txt"
     fi
 }
 
-# ── Dump Gitea PostgreSQL ─────────────────────────────────────────────────────
+# ── Dumps PostgreSQL ──────────────────────────────────────────────────────────
 info "Fazendo dump do banco Gitea (PostgreSQL)..."
 wake_container homelab-gitea-db
 docker exec homelab-gitea-db \
     pg_dump -U "${GITEA_DB_USER:-gitea}" -d "${GITEA_DB_NAME:-gitea}" \
-    | gzip > "${BACKUP_DIR}/gitea-postgres.sql.gz"
+    | gzip > "${DUMP_DEST}/gitea-postgres.sql.gz"
 info "  → gitea-postgres.sql.gz"
 
-# ── Dump Linkwarden PostgreSQL ────────────────────────────────────────────────
 info "Fazendo dump do banco Linkwarden (PostgreSQL)..."
 wake_container homelab-linkwarden-db
 docker exec homelab-linkwarden-db \
     pg_dump -U "${LINKWARDEN_DB_USER:-linkwarden}" -d "${LINKWARDEN_DB_NAME:-linkwarden}" \
-    | gzip > "${BACKUP_DIR}/linkwarden-postgres.sql.gz"
+    | gzip > "${DUMP_DEST}/linkwarden-postgres.sql.gz"
 info "  → linkwarden-postgres.sql.gz"
 
-# ── Backup de dados persistentes ──────────────────────────────────────────────
-backup_dir() {
-    local label="$1"
-    local src="$2"
-    local dest="${BACKUP_DIR}/${label}.tar.gz"
-    if [[ -d "${src}" ]]; then
-        info "Arquivando ${src}..."
-        tar -czf "${dest}" -C "$(dirname "${src}")" "$(basename "${src}")"
-        info "  → ${label}.tar.gz"
-    else
-        warn "Diretório não encontrado, ignorando: ${src}"
-    fi
-}
+info "Fazendo dump do banco Mealie (PostgreSQL)..."
+wake_container homelab-mealie-db
+docker exec homelab-mealie-db \
+    pg_dump -U "${MEALIE_DB_USER:-mealie}" -d "${MEALIE_DB_NAME:-mealie}" \
+    | gzip > "${DUMP_DEST}/mealie-postgres.sql.gz"
+info "  → mealie-postgres.sql.gz"
 
-backup_dir "gitea-data"         /srv/homelab/gitea/data
-backup_dir "vaultwarden-data"   /srv/homelab/vaultwarden/data
-backup_dir "linkwarden-data"    /srv/homelab/linkwarden/data
-backup_dir "caddy-data"         /srv/homelab/caddy/data
-backup_dir "adguard-conf"       /srv/homelab/adguard/conf
+info "Fazendo dump do banco Immich (PostgreSQL)..."
+wake_container homelab-immich-postgres
+docker exec homelab-immich-postgres \
+    pg_dump -U "${IMMICH_DB_USER:-immich}" -d "${IMMICH_DB_NAME:-immich}" \
+    | gzip > "${DUMP_DEST}/immich-postgres.sql.gz"
+info "  → immich-postgres.sql.gz"
 
 # ── Finaliza manifesto ────────────────────────────────────────────────────────
 {
     echo "files="
-    ls -1 "${BACKUP_DIR}"
-} >> "${BACKUP_DIR}/manifest.txt"
+    ls -1 "${DUMP_DEST}"
+} >> "${DUMP_DEST}/manifest.txt"
+
+# ── Limpa dumps antigos (mantém os 7 mais recentes) ──────────────────────────
+DUMPS_DIR="${DATA_DIR}/sql-dumps"
+KEEP=7
+OLD_COUNT=$(find "${DUMPS_DIR}" -maxdepth 1 -mindepth 1 -type d | wc -l)
+if [[ ${OLD_COUNT} -gt ${KEEP} ]]; then
+    info "Removendo dumps antigos (mantendo ${KEEP})..."
+    find "${DUMPS_DIR}" -maxdepth 1 -mindepth 1 -type d \
+        | sort | head -n -${KEEP} \
+        | xargs rm -rf
+fi
 
 echo ""
-info "Backup concluído com sucesso: ${BACKUP_DIR}"
+info "Backup concluído: ${DUMP_DEST}"
 echo ""
-du -sh "${BACKUP_DIR}"
+du -sh "${DUMP_DEST}"
 echo ""
-info "Para restaurar: ./scripts/restore.sh ${BACKUP_DIR}"
+info "Kopia irá incluir estes dumps no próximo snapshot automático."
+info "Para restaurar: ./scripts/restore.sh ${DUMP_DEST}"

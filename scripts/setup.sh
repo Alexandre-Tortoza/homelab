@@ -47,54 +47,87 @@ set +a
 
 PUID="${PUID:-1000}"
 PGID="${PGID:-1000}"
+DATA_DIR="${DATA_DIR:-/mnt/hd2/homelab}"
+KOPIA_REPOSITORY_PATH="${KOPIA_REPOSITORY_PATH:-/mnt/hd2/backups}"
+
+# ── Valida HD secundário ──────────────────────────────────────────────────────
+info "Verificando HD secundário em ${DATA_DIR}..."
+
+MOUNT_PARENT="$(dirname "${DATA_DIR}")"
+if [[ ! -d "${MOUNT_PARENT}" ]]; then
+    die "Ponto de montagem não encontrado: ${MOUNT_PARENT}
+Monte o HD secundário antes de continuar. Exemplo:
+  sudo mount /dev/sdX1 ${MOUNT_PARENT}
+Ou adicione uma entrada em /etc/fstab para montagem automática."
+fi
+
+if ! mountpoint -q "${MOUNT_PARENT}" 2>/dev/null; then
+    warn "ATENÇÃO: ${MOUNT_PARENT} não parece ser um ponto de montagem separado."
+    warn "Certifique-se de que DATA_DIR=${DATA_DIR} aponta para o HD secundário."
+    warn "Continuar criará os diretórios no disco atual."
+    read -r -p "Continuar mesmo assim? [s/N] " CONFIRM
+    [[ "${CONFIRM,,}" == "s" ]] || die "Abortado. Monte o HD secundário e tente novamente."
+fi
 
 # ── Diretórios persistentes ───────────────────────────────────────────────────
-info "Criando diretórios em /srv/homelab/..."
-
-BASE=/srv/homelab
+info "Criando diretórios em ${DATA_DIR}..."
 
 if [[ "$EUID" -ne 0 ]]; then
-    warn "Este script precisa de sudo para criar diretórios em /srv/. Tentando com sudo..."
+    warn "Usando sudo para criar diretórios..."
     SUDO="sudo"
 else
     SUDO=""
 fi
 
 $SUDO mkdir -p \
-    "${BASE}/caddy/data" \
-    "${BASE}/caddy/config" \
-    "${BASE}/gitea/data" \
-    "${BASE}/gitea/postgres" \
-    "${BASE}/vaultwarden/data" \
-    "${BASE}/linkwarden/data" \
-    "${BASE}/linkwarden/postgres" \
-    "${BASE}/adguard/work" \
-    "${BASE}/adguard/conf"
+    "${DATA_DIR}/caddy/data" \
+    "${DATA_DIR}/caddy/config" \
+    "${DATA_DIR}/gitea/data" \
+    "${DATA_DIR}/gitea/postgres" \
+    "${DATA_DIR}/vaultwarden/data" \
+    "${DATA_DIR}/linkwarden/data" \
+    "${DATA_DIR}/linkwarden/postgres" \
+    "${DATA_DIR}/actual/data" \
+    "${DATA_DIR}/mealie/data" \
+    "${DATA_DIR}/mealie/postgres" \
+    "${DATA_DIR}/immich/library" \
+    "${DATA_DIR}/immich/model-cache" \
+    "${DATA_DIR}/immich/postgres" \
+    "${DATA_DIR}/grafana/data" \
+    "${DATA_DIR}/prometheus/data" \
+    "${DATA_DIR}/kopia/config" \
+    "${DATA_DIR}/kopia/cache" \
+    "${DATA_DIR}/kopia/logs" \
+    "${DATA_DIR}/sql-dumps" \
+    "${KOPIA_REPOSITORY_PATH}"
 
 # Gitea data: propriedade do usuário host
-$SUDO chown -R "${PUID}:${PGID}" "${BASE}/gitea/data"
-$SUDO chmod -R 750 "${BASE}/gitea/data"
+$SUDO chown -R "${PUID}:${PGID}" "${DATA_DIR}/gitea/data"
+$SUDO chmod -R 750 "${DATA_DIR}/gitea/data"
 
 # PostgreSQL Alpine usa UID 70
-$SUDO chown 70:70 "${BASE}/gitea/postgres"
-$SUDO chmod 700 "${BASE}/gitea/postgres"
-$SUDO chown 70:70 "${BASE}/linkwarden/postgres"
-$SUDO chmod 700 "${BASE}/linkwarden/postgres"
+$SUDO chown 70:70 "${DATA_DIR}/gitea/postgres"
+$SUDO chmod 700 "${DATA_DIR}/gitea/postgres"
+$SUDO chown 70:70 "${DATA_DIR}/linkwarden/postgres"
+$SUDO chmod 700 "${DATA_DIR}/linkwarden/postgres"
+$SUDO chown 70:70 "${DATA_DIR}/mealie/postgres"
+$SUDO chmod 700 "${DATA_DIR}/mealie/postgres"
 
 # Vaultwarden
-$SUDO chmod 750 "${BASE}/vaultwarden/data"
+$SUDO chmod 750 "${DATA_DIR}/vaultwarden/data"
 
 # Linkwarden data
-$SUDO chown -R "${PUID}:${PGID}" "${BASE}/linkwarden/data"
-$SUDO chmod -R 750 "${BASE}/linkwarden/data"
+$SUDO chown -R "${PUID}:${PGID}" "${DATA_DIR}/linkwarden/data"
+$SUDO chmod -R 750 "${DATA_DIR}/linkwarden/data"
 
 # Caddy
-$SUDO chmod 750 "${BASE}/caddy/data" "${BASE}/caddy/config"
+$SUDO chmod 750 "${DATA_DIR}/caddy/data" "${DATA_DIR}/caddy/config"
 
-# AdGuard
-$SUDO chmod 750 "${BASE}/adguard/work" "${BASE}/adguard/conf"
+# Kopia
+$SUDO chmod 750 "${DATA_DIR}/kopia/config" "${DATA_DIR}/kopia/cache" "${DATA_DIR}/kopia/logs"
+$SUDO chmod 750 "${KOPIA_REPOSITORY_PATH}"
 
-info "Diretórios criados com sucesso."
+info "Diretórios criados com sucesso em ${DATA_DIR}."
 
 # ── Rede Docker ───────────────────────────────────────────────────────────────
 if ! docker network inspect homelab &>/dev/null; then
@@ -126,6 +159,8 @@ check_var "GITEA_DB_PASSWORD"
 check_var "VAULTWARDEN_ADMIN_TOKEN"
 check_var "LINKWARDEN_DB_PASSWORD"
 check_var "LINKWARDEN_NEXTAUTH_SECRET"
+check_var "KOPIA_SERVER_PASSWORD"
+check_var "KOPIA_PASSWORD"
 
 if [[ ${#MISSING[@]} -gt 0 ]]; then
     echo ""

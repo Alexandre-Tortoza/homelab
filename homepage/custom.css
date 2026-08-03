@@ -1,0 +1,95 @@
+/* ── Background gradient ─────────────────────────────────────────────────── */
+body {
+  background: linear-gradient(135deg, #090914 0%, #130d2e 30%, #0f1b3d 65%, #090d1a 100%) !important;
+  background-attachment: fixed !important;
+  min-height: 100vh;
+}
+
+/* ── Floating orbs ──────────────────────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  top: -150px;
+  right: -100px;
+  width: 650px;
+  height: 650px;
+  background: radial-gradient(circle, rgba(111, 66, 255, 0.14) 0%, transparent 68%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  animation: floatA 18s ease-in-out infinite;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  bottom: -150px;
+  left: -100px;
+  width: 550px;
+  height: 550px;
+  background: radial-gradient(circle, rgba(30, 120, 255, 0.12) 0%, transparent 68%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  animation: floatB 22s ease-in-out infinite;
+}
+
+@keyframes floatA {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(-40px, 60px) scale(1.08); }
+  66%       { transform: translate(30px, -40px) scale(0.95); }
+}
+
+@keyframes floatB {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(50px, -50px) scale(1.06); }
+  66%       { transform: translate(-30px, 30px) scale(0.97); }
+}
+
+/* ── Glass cards ────────────────────────────────────────────────────────── */
+[class*="backdrop-blur"] {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07) !important;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease !important;
+}
+
+[class*="backdrop-blur"]:hover {
+  transform: translateY(-3px) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  box-shadow:
+    0 14px 42px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(111, 66, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10) !important;
+}
+
+/* ── Service link hover glow ────────────────────────────────────────────── */
+a[class*="text-theme"] {
+  transition: color 0.2s ease, text-shadow 0.2s ease !important;
+}
+
+a[class*="text-theme"]:hover {
+  text-shadow: 0 0 12px rgba(139, 92, 246, 0.6) !important;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.35);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.55);
+}

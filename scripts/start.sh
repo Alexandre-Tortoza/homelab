@@ -11,8 +11,8 @@ if [[ ! -f .env ]]; then
     exit 1
 fi
 
-echo "Iniciando Caddy e Sablier (serviços de gateway)..."
-docker compose up -d caddy sablier
+echo "Iniciando gateway e serviços permanentes..."
+docker compose up -d caddy sablier coredns homepage kopia
 
 echo ""
 echo "Gateway ativo. Os serviços de aplicação (Gitea, Vaultwarden, Linkwarden)"
@@ -21,8 +21,10 @@ echo ""
 echo "URLs:"
 # shellcheck source=/dev/null
 source .env
-echo "  Gitea:       https://git.${TAILSCALE_MACHINE}.ts.net"
-echo "  Vaultwarden: https://vault.${TAILSCALE_MACHINE}.ts.net"
-echo "  Linkwarden:  https://links.${TAILSCALE_MACHINE}.ts.net"
+echo "  Homepage:    https://home.${HOMELAB_DOMAIN}"
+echo "  Kopia:       https://kopia.${HOMELAB_DOMAIN}"
+echo "  Gitea:       https://git.${HOMELAB_DOMAIN}"
+echo "  Vaultwarden: https://vault.${HOMELAB_DOMAIN}"
+echo "  Linkwarden:  https://links.${HOMELAB_DOMAIN}"
 echo ""
 echo "Para ver o status: ./scripts/status.sh"

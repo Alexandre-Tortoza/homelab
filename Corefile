@@ -1,0 +1,10 @@
+homelab {
+    template IN A {
+        answer "{{ .Name }} 60 IN A {$TAILSCALE_IP}"
+    }
+    template IN AAAA {
+        rcode NOERROR
+    }
+    log
+    errors
+}

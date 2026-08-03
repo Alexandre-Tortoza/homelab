@@ -1,0 +1,15 @@
+title: Homelab
+theme: dark
+color: slate
+headerStyle: underlined
+cardBlur: md
+
+layout:
+  Applications:
+    style: row
+    columns: 3
+    icon: mdi-apps
+  Infrastructure:
+    style: row
+    columns: 4
+    icon: mdi-server-network

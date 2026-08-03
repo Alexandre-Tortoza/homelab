@@ -1,0 +1,95 @@
+services:
+
+  # ── Gitea ──────────────────────────────────────────────────────────────────
+  gitea:
+    image: ${GITEA_IMAGE:-gitea/gitea:1.27.1}
+    container_name: homelab-gitea
+    restart: unless-stopped
+    ports:
+      - "${GITEA_SSH_PORT:-2222}:22"
+    volumes:
+      - ${DATA_DIR}/gitea/data:/data
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - homelab
+    environment:
+      USER_UID: ${PUID:-1000}
+      USER_GID: ${PGID:-1000}
+      GITEA__database__DB_TYPE: postgres
+      GITEA__database__HOST: gitea-db:5432
+      GITEA__database__NAME: ${GITEA_DB_NAME:-gitea}
+      GITEA__database__USER: ${GITEA_DB_USER:-gitea}
+      GITEA__database__PASSWD: ${GITEA_DB_PASSWORD}
+      GITEA__server__ROOT_URL: "https://git.${HOMELAB_DOMAIN}"
+      GITEA__server__DOMAIN: "git.${HOMELAB_DOMAIN}"
+      GITEA__server__SSH_DOMAIN: "${TAILSCALE_MACHINE}.ts.net"
+      GITEA__server__SSH_PORT: ${GITEA_SSH_PORT:-2222}
+      GITEA__server__SSH_LISTEN_PORT: "22"
+      GITEA__server__LFS_START_SERVER: "true"
+      GITEA__service__DISABLE_REGISTRATION: "true"
+      GITEA__packages__ENABLED: "true"
+      GITEA__log__LEVEL: Warn
+      TZ: ${TZ:-America/Sao_Paulo}
+    depends_on:
+      gitea-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/api/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    labels:
+      sablier.enable: "true"
+      sablier.group: gitea
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+  gitea-db:
+    image: ${GITEA_DB_IMAGE:-postgres:18.4-alpine}
+    container_name: homelab-gitea-db
+    restart: unless-stopped
+    volumes:
+      - ${DATA_DIR}/gitea/postgres:/var/lib/postgresql
+    networks:
+      - homelab
+    environment:
+      POSTGRES_DB: ${GITEA_DB_NAME:-gitea}
+      POSTGRES_USER: ${GITEA_DB_USER:-gitea}
+      POSTGRES_PASSWORD: ${GITEA_DB_PASSWORD}
+      TZ: ${TZ:-America/Sao_Paulo}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      sablier.enable: "true"
+      sablier.group: gitea
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+networks:
+  homelab:
+    external: true

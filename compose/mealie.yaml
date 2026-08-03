@@ -1,0 +1,82 @@
+services:
+
+  # ── Mealie ────────────────────────────────────────────────────────────────
+  mealie:
+    image: ${MEALIE_IMAGE:-ghcr.io/mealie-recipes/mealie:v2.5.0}
+    container_name: homelab-mealie
+    restart: unless-stopped
+    volumes:
+      - ${DATA_DIR}/mealie/data:/app/data
+    networks:
+      - homelab
+    environment:
+      DATABASE_TYPE: postgres
+      POSTGRES_URL_OVERRIDE: postgresql://${MEALIE_DB_USER:-mealie}:${MEALIE_DB_PASSWORD}@mealie-db/${MEALIE_DB_NAME:-mealie}
+      DEFAULT_EMAIL: ${MEALIE_DEFAULT_EMAIL}
+      DEFAULT_PASSWORD: ${MEALIE_DEFAULT_PASSWORD}
+      BASE_URL: "https://mealie.${HOMELAB_DOMAIN}"
+      ALLOW_SIGNUP: "false"
+      TZ: ${TZ:-America/Sao_Paulo}
+    depends_on:
+      mealie-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/api/app/about', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      sablier.enable: "true"
+      sablier.group: mealie
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+  mealie-db:
+    image: ${MEALIE_DB_IMAGE:-postgres:18.4-alpine}
+    container_name: homelab-mealie-db
+    restart: unless-stopped
+    volumes:
+      - ${DATA_DIR}/mealie/postgres:/var/lib/postgresql
+    networks:
+      - homelab
+    environment:
+      POSTGRES_DB: ${MEALIE_DB_NAME:-mealie}
+      POSTGRES_USER: ${MEALIE_DB_USER:-mealie}
+      POSTGRES_PASSWORD: ${MEALIE_DB_PASSWORD}
+      TZ: ${TZ:-America/Sao_Paulo}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      sablier.enable: "true"
+      sablier.group: mealie
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+networks:
+  homelab:
+    external: true

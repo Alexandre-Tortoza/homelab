@@ -1,0 +1,126 @@
+services:
+
+  # ── Immich ────────────────────────────────────────────────────────────────
+  immich-server:
+    image: ${IMMICH_IMAGE:-ghcr.io/immich-app/immich-server:release}
+    container_name: homelab-immich
+    restart: unless-stopped
+    volumes:
+      - ${DATA_DIR}/immich/library:/usr/src/app/upload
+    networks:
+      - homelab
+    environment:
+      DB_HOSTNAME: immich-postgres
+      DB_USERNAME: ${IMMICH_DB_USER:-immich}
+      DB_PASSWORD: ${IMMICH_DB_PASSWORD}
+      DB_DATABASE_NAME: ${IMMICH_DB_NAME:-immich}
+      REDIS_HOSTNAME: immich-redis
+      TZ: ${TZ:-America/Sao_Paulo}
+    depends_on:
+      immich-postgres:
+        condition: service_healthy
+      immich-redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:2283/api/server/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+          cpus: "1.5"
+
+  immich-machine-learning:
+    image: ${IMMICH_ML_IMAGE:-ghcr.io/immich-app/immich-machine-learning:release}
+    container_name: homelab-immich-ml
+    restart: unless-stopped
+    volumes:
+      - ${DATA_DIR}/immich/model-cache:/cache
+    networks:
+      - homelab
+    environment:
+      TZ: ${TZ:-America/Sao_Paulo}
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 2048M
+          cpus: "2.0"
+
+  # imagem com extensão pgvector pré-instalada — necessária para busca de similaridade
+  immich-postgres:
+    image: ${IMMICH_DB_IMAGE:-ghcr.io/immich-app/postgres:14-vectorchord0.3.0}
+    container_name: homelab-immich-postgres
+    restart: unless-stopped
+    volumes:
+      - ${DATA_DIR}/immich/postgres:/var/lib/postgresql/data
+    networks:
+      - homelab
+    environment:
+      POSTGRES_DB: ${IMMICH_DB_NAME:-immich}
+      POSTGRES_USER: ${IMMICH_DB_USER:-immich}
+      POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+      TZ: ${TZ:-America/Sao_Paulo}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+  immich-redis:
+    image: ${IMMICH_REDIS_IMAGE:-redis:7.2-alpine}
+    container_name: homelab-immich-redis
+    restart: unless-stopped
+    networks:
+      - homelab
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.2"
+
+networks:
+  homelab:
+    external: true

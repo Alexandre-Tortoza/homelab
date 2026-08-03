@@ -1,0 +1,24 @@
+- greeting:
+    text_size: xl
+    text: Homelab
+
+- datetime:
+    text_size: l
+    format:
+      dateStyle: long
+      timeStyle: short
+      hourCycle: h23
+    locale: pt-BR
+
+- resources:
+    cpu: true
+    memory: true
+    disk: /
+    label: Host
+    expanded: true
+    units: metric
+
+- search:
+    provider: duckduckgo
+    target: _blank
+    focus: false

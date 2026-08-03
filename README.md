@@ -1,6 +1,6 @@
 # Homelab
 
-Self-hosted, reproduzível e seguro com Docker Compose. Serviços escalam para zero quando não estão em uso — Caddy e Sablier ficam sempre ativos; Gitea, Vaultwarden e Linkwarden dormem até a primeira requisição.
+Self-hosted, reproduzível e seguro com Docker Compose. Gitea, Vaultwarden e Linkwarden escalam para zero quando não estão em uso; Caddy, Sablier, CoreDNS, Homepage e Kopia permanecem ativos.
 
 ## 1. Arquitetura
 
@@ -9,17 +9,18 @@ Internet / Tailscale
        │
     Caddy :443 (:80 → redirect)
        │
-   Sablier (scale-to-zero manager)
-   ┌────┴──────────────────────────┐
-   │            │                  │
-gitea:3000  vaultwarden:80  linkwarden:3000
-   │                               │
-gitea-db:5432             linkwarden-db:5432
+  Homepage:3000  Kopia:51515  Sablier
+                             │
+              ┌──────────────┴──────────────┐
+              │              │               │
+         gitea:3000    vaultwarden:80  linkwarden:3000
+              │                              │
+         gitea-db:5432            linkwarden-db:5432
 ```
 
 **Rede:** todos os containers compartilham a rede Docker `homelab`. Nenhum banco publica porta no host. Apenas Caddy publica 80/443 e Gitea publica a porta SSH.
 
-**Scale-to-zero com Sablier:** o plugin do Caddy intercepta cada requisição e acorda os containers correspondentes. Após `SESSION_DURATION` sem tráfego, o Sablier para os containers. Caddy e Sablier ficam sempre ativos (consumo mínimo ~50 MB).
+**Scale-to-zero com Sablier:** o plugin do Caddy intercepta cada requisição e acorda os containers correspondentes. Após `SESSION_DURATION` sem tráfego, o Sablier para os containers. Os serviços de infraestrutura e backup permanecem ativos.
 
 ## 2. Pré-requisitos
 
@@ -43,7 +44,8 @@ homelab/               ← repositório (receita apenas)
 ├── caddy/{data,config}
 ├── gitea/{data,postgres}
 ├── vaultwarden/data
-└── linkwarden/{data,postgres}
+├── linkwarden/{data,postgres}
+└── kopia/{config,cache,logs,repository}
 ```
 
 ## 4. Configuração do .env
@@ -61,6 +63,7 @@ Variáveis obrigatórias:
 | `VAULTWARDEN_ADMIN_TOKEN` | Token ou hash argon2 do admin |
 | `LINKWARDEN_DB_PASSWORD` | Senha do PostgreSQL do Linkwarden |
 | `LINKWARDEN_NEXTAUTH_SECRET` | Secret de autenticação do Linkwarden |
+| `KOPIA_SERVER_PASSWORD` | Senha da interface web do Kopia |
 
 Gere valores seguros:
 
@@ -91,7 +94,7 @@ sudo ./scripts/setup.sh
 
 ## 6. Configuração de DNS com Tailscale
 
-Os domínios usam o formato `git.MACHINE.ts.net`, onde `MACHINE` é o nome da sua máquina no Tailscale.
+Os domínios usam o formato `git.<HOMELAB_DOMAIN>`. Com o valor padrão, os endereços são `git.homelab`, `vault.homelab`, `links.homelab`, `home.homelab` e `kopia.homelab`.
 
 **Encontre o nome e o IP Tailscale da máquina:**
 
@@ -108,21 +111,29 @@ Adicione em cada dispositivo que vai acessar o homelab:
 ```
 # Linux/macOS: /etc/hosts
 # Windows: C:\Windows\System32\drivers\etc\hosts
-100.x.x.x  git.MACHINE.ts.net  vault.MACHINE.ts.net  links.MACHINE.ts.net
+100.x.x.x  git.homelab  vault.homelab  links.homelab  home.homelab  kopia.homelab
 ```
 
 ### Opção B — Tailscale split-DNS (recomendado, zero config nos clientes)
 
-Requer um resolvedor DNS local no servidor (Pi-hole, AdGuard Home ou CoreDNS).
-Configure-o com registros wildcard `*.MACHINE.ts.net → 100.x.x.x`, depois:
+O CoreDNS deste projeto responde pelo domínio definido em `HOMELAB_DOMAIN`. Atualize o domínio e o IP em `Corefile` se alterá-los no `.env`, depois:
 
 ```
 Tailscale Admin → DNS → Add nameserver
 → IP Tailscale do servidor
-→ Restrict to domain: MACHINE.ts.net
+→ Restrict to domain: homelab
 ```
 
-Todos os dispositivos Tailscale passam a resolver `*.MACHINE.ts.net` automaticamente.
+Todos os dispositivos Tailscale passam a resolver `*.homelab` automaticamente.
+
+## Homepage e Kopia
+
+- Homepage: `https://home.<HOMELAB_DOMAIN>` concentra os links para os serviços. A configuração fica em `homepage/` e não recebe o socket Docker.
+- Kopia: `https://kopia.<HOMELAB_DOMAIN>` gerencia os backups criptografados. Entre com `KOPIA_SERVER_USERNAME` e `KOPIA_SERVER_PASSWORD` definidos no `.env`.
+
+Na primeira visita ao Kopia, crie ou conecte o repositório do tipo **Filesystem** no caminho `/repository` e defina a senha de criptografia do repositório. Em seguida, crie um snapshot do diretório `/source`, que contém apenas os dados persistentes de Caddy, Gitea, Vaultwarden e Linkwarden em modo leitura.
+
+`KOPIA_REPOSITORY_PATH` controla o diretório do host montado como `/repository`. Aponte-o para um NAS ou disco externo montado, por exemplo `/mnt/backup/kopia`. O padrão `/srv/homelab/kopia/repository` é adequado apenas para testes: snapshots no mesmo host não protegem contra perda, roubo ou falha do disco do servidor.
 
 ## 7. Uso com Tailscale
 
@@ -135,7 +146,7 @@ sudo tailscale up
 tailscale ip -4
 ```
 
-Com MagicDNS ativo no Tailscale Admin, o nome `MACHINE` já resolve entre dispositivos Tailscale. Os subdomínios (`git.`, `vault.`, `links.`) precisam da Opção A ou B acima.
+Com MagicDNS ativo no Tailscale Admin, o host já resolve entre dispositivos Tailscale. Os subdomínios (`git.`, `vault.`, `links.`, `home.` e `kopia.`) precisam da Opção A ou B acima.
 
 ## 8. Instalação do certificado raiz do Caddy
 
@@ -203,19 +214,79 @@ docker pull git.<machine>.<tailnet>.ts.net/usuario/app:latest
 
 ## 12. Backup
 
+O sistema de backup tem duas camadas complementares:
+
+| Camada | O que faz | Quando roda |
+|---|---|---|
+| `backup.sh` | Dumps SQL dos PostgreSQL + tar.gz dos dados persistentes | Cron às 02:00 |
+| Kopia | Snapshot criptografado e deduplicado de tudo no HD externo | Policy às 03:00 |
+
+### 12.1 Disco de backup
+
+O repositório do Kopia fica em `/mnt/ssd-01/homelab-backups` (`ssd-01`, ~430 GB disponíveis, já montado automaticamente).
+
+No `.env`, confirme que está assim:
+
+```env
+KOPIA_REPOSITORY_PATH=/mnt/ssd-01/homelab-backups
+```
+
+### 12.2 Inicializar o repositório Kopia (uma vez)
+
+Após subir o container (`docker compose up -d kopia`):
+
+```bash
+# Cria o repositório criptografado no HD externo (usa KOPIA_PASSWORD do .env)
+docker exec homelab-kopia kopia repository create filesystem --path /repository
+```
+
+Acesse a UI em `https://kopia.homelab` com as credenciais `KOPIA_SERVER_USERNAME` / `KOPIA_SERVER_PASSWORD`.
+
+### 12.3 Configurar snapshots na UI do Kopia
+
+Na interface web:
+1. **Snapshots → New Snapshot** → path: `/source/gitea`
+2. **Snapshots → New Snapshot** → path: `/source/vaultwarden`
+3. **Snapshots → New Snapshot** → path: `/source/linkwarden`
+4. **Snapshots → New Snapshot** → path: `/source/caddy`
+5. **Snapshots → New Snapshot** → path: `/source/sql-dumps`
+6. Em cada snapshot: **Edit Policy → Scheduling** → Daily às 03:00
+
+### 12.4 Backup manual (dumps SQL)
+
 ```bash
 ./scripts/backup.sh
 ```
 
 Gera em `backups/<timestamp>/`:
-- `gitea-postgres.sql.gz`, `linkwarden-postgres.sql.gz` — dumps SQL
+- `gitea-postgres.sql.gz`, `linkwarden-postgres.sql.gz` — dumps SQL consistentes
 - `gitea-data.tar.gz`, `vaultwarden-data.tar.gz`, `linkwarden-data.tar.gz`, `caddy-data.tar.gz`
 - `manifest.txt`
 
-Para agendar (cron às 03:00):
+### 12.5 Automatizar com cron
 
 ```bash
-0 3 * * * /caminho/homelab/scripts/backup.sh >> /var/log/homelab-backup.log 2>&1
+crontab -e
+```
+
+Adicionar:
+
+```
+# 02:00 — dump SQL (Kopia faz o snapshot às 03:00 e inclui esses dumps)
+0 2 * * * /caminho/homelab/scripts/backup.sh >> /var/log/homelab-backup.log 2>&1
+```
+
+### 12.6 Verificar snapshots
+
+```bash
+# Listar todos os snapshots do repositório
+docker exec homelab-kopia kopia snapshot list
+
+# Ver tamanho e estatísticas do repositório
+docker exec homelab-kopia kopia repository status
+
+# Restaurar um arquivo específico de um snapshot
+docker exec homelab-kopia kopia restore <snapshot-id> /target/path
 ```
 
 ## 13. Restauração

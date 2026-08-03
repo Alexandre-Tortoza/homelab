@@ -38,8 +38,8 @@ info "Reconstruindo imagem do Caddy..."
 docker compose build caddy
 
 # ── Recria os containers ──────────────────────────────────────────────────────
-info "Recriando containers..."
-docker compose up -d --force-recreate caddy sablier
+info "Recriando gateway e serviços permanentes..."
+docker compose up -d --force-recreate caddy sablier coredns homepage kopia
 
 # Aguarda os bancos e apps escalados pelo Sablier ficarem prontos quando acessados
 info "Gateway atualizado. Containers de aplicação serão recriados pelo Sablier sob demanda."

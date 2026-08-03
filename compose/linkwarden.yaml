@@ -1,0 +1,81 @@
+services:
+
+  # ── Linkwarden ────────────────────────────────────────────────────────────
+  linkwarden:
+    image: ${LINKWARDEN_IMAGE:-ghcr.io/linkwarden/linkwarden:v2.8.4}
+    container_name: homelab-linkwarden
+    restart: unless-stopped
+    volumes:
+      - ${DATA_DIR}/linkwarden/data:/data/data
+    networks:
+      - homelab
+    environment:
+      DATABASE_URL: postgresql://${LINKWARDEN_DB_USER:-linkwarden}:${LINKWARDEN_DB_PASSWORD}@linkwarden-db:5432/${LINKWARDEN_DB_NAME:-linkwarden}
+      NEXTAUTH_SECRET: ${LINKWARDEN_NEXTAUTH_SECRET}
+      NEXTAUTH_URL: "https://links.${HOMELAB_DOMAIN}"
+      DISABLE_REGISTRATION: ${LINKWARDEN_DISABLE_REGISTRATION:-true}
+      NEXT_PUBLIC_DISABLE_REGISTRATION: ${LINKWARDEN_DISABLE_REGISTRATION:-true}
+      TZ: ${TZ:-America/Sao_Paulo}
+    depends_on:
+      linkwarden-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      sablier.enable: "true"
+      sablier.group: linkwarden
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+  linkwarden-db:
+    image: ${LINKWARDEN_DB_IMAGE:-postgres:18.4-alpine}
+    container_name: homelab-linkwarden-db
+    restart: unless-stopped
+    volumes:
+      - ${DATA_DIR}/linkwarden/postgres:/var/lib/postgresql
+    networks:
+      - homelab
+    environment:
+      POSTGRES_DB: ${LINKWARDEN_DB_NAME:-linkwarden}
+      POSTGRES_USER: ${LINKWARDEN_DB_USER:-linkwarden}
+      POSTGRES_PASSWORD: ${LINKWARDEN_DB_PASSWORD}
+      TZ: ${TZ:-America/Sao_Paulo}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    labels:
+      sablier.enable: "true"
+      sablier.group: linkwarden
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+
+networks:
+  homelab:
+    external: true
